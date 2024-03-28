@@ -1,0 +1,2 @@
+[console_scripts]
+atavide = atavide.__main__:main
