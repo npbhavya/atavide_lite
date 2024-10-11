@@ -1,0 +1,4 @@
+include atavide/atavide.LICENSE
+include atavide/atavide.CITATION
+include atavide/atavide.VERSION
+recursive-include atavide *
