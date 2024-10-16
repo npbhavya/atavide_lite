@@ -1,4 +1,9 @@
+.nextflow*
 atavide.egg-info
+work
+atavide.out 
+build 
+dist 
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
