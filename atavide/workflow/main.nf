@@ -5,7 +5,8 @@ params.input = './testData/paired/'
 params.outdir = 'atavide.out'
 
 //databases 
-params.host = './testData/host_reads.fna.gz'
+params.db = './atavide.out/databases'
+params.host = './atavide.out/databases/GCF_000001405.40_GRCh38.p14_genomic.fna.gz'
 params.temp = '/tmp/'
 
 // Define the QC process
@@ -55,6 +56,36 @@ process hostFilter {
     """
 }
 
+process readsTaxa {
+    publishDir "${params.outdir}/mmseqs", pattern: "*_report.gz", mode: 'copy', mkdirs: true
+
+    // input files
+    input:
+    tuple val(id), path(r1), path(r2) // Tuple to unpack the id, trimmed R1 and R2
+    path UniRef50 // mmseqs database
+
+    output:
+    path "${id}_report.gz"
+    path "${id}_lca.tsv.gz"
+    path "${id}_tophit_report.gz"
+
+    conda 'bioconda::mmseqs2=14.7e284'
+ 
+    script:
+    """
+    atavide_lite/bin/fastq2fasta ${r1} ${id}_R1.fasta
+    atavide_lite/bin/fastq2fasta ${r2} ${id}_R2.fasta
+   
+    # Check if FASTA files were created successfully
+    if [ ! -f ${id}_R1.fasta ] || [ ! -f ${id}_R2.fasta ]; then
+        echo "Error: FASTA files not created. Exiting."
+        exit 1
+    fi
+
+    mmseqs easy-taxonomy ${id}_R1.fasta ${id}_R2.fasta ${UniRef50} ${id} ${params.temp} --start-sens 1 --sens-steps 3 -s 7 --threads ${task.cpus}
+    """
+}
+
 workflow {
     // Channel for R1 reads
     ch_r1 = Channel.fromPath("${params.input}/*_R1*.fastq.gz")
@@ -85,6 +116,12 @@ workflow {
         ch_genome = Channel.fromPath(params.host)
 
         // Run the hostFilter process with trimmed files and genome
-        hostFilter(ch_trimmed, ch_genome)
+        ch_filtered = hostFilter(ch_trimmed, ch_genome)
+
+        // Set the input for readsTaxa to the output of hostFilter
+        ch_taxa_input = ch_filtered
+    } else {
+        // If hostFilter is not run, use the output from FASTP
+        ch_taxa_input = ch_trimmed
     }
 }

@@ -10,4 +10,5 @@
 #SBATCH --partition=high-capacity
 #SBATCH --qos=hc-concurrent-jobs
 
+#nextflow run atavide/workflow/install.nf 
 nextflow run atavide/workflow/main.nf -profile local
