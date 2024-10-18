@@ -5,9 +5,16 @@ params.input = './testData/paired/'
 params.outdir = 'atavide.out'
 
 //databases 
-params.db = './atavide.out/databases'
-params.host = './atavide.out/databases/GCF_000001405.40_GRCh38.p14_genomic.fna.gz'
-params.temp = '/tmp/'
+params.db = './atavide.out/databases/'
+params.host = '/atavide.out/databases/GCF_000001405.40_GRCh38.p14_genomic.fna.gz'
+params.uniref = './atavide.out/databases/UniRef50_db'
+params.temp = '/scratch/user/nala0006/tmp'
+
+// Check if the database directory exists
+if (!file(params.db).isDirectory() || file(params.db).list().length == 0) {
+    include 'install.nf'
+    install_workflow()
+}
 
 // Define the QC process
 process FASTP {
@@ -62,40 +69,33 @@ process readsTaxa {
     // input files
     input:
     tuple val(id), path(r1), path(r2) // Tuple to unpack the id, trimmed R1 and R2
-    path UniRef50 // mmseqs database
+    path uniref50db // mmseqs database
 
     output:
     path "${id}_report.gz"
     path "${id}_lca.tsv.gz"
     path "${id}_tophit_report.gz"
 
-    conda 'bioconda::mmseqs2=14.7e284'
+    conda 'bioconda::seqkit=2.8.2 bioconda::mmseqs2=14.7e284'
  
     script:
     """
-    atavide_lite/bin/fastq2fasta ${r1} ${id}_R1.fasta
-    atavide_lite/bin/fastq2fasta ${r2} ${id}_R2.fasta
-   
-    # Check if FASTA files were created successfully
-    if [ ! -f ${id}_R1.fasta ] || [ ! -f ${id}_R2.fasta ]; then
-        echo "Error: FASTA files not created. Exiting."
-        exit 1
-    fi
-
-    mmseqs easy-taxonomy ${id}_R1.fasta ${id}_R2.fasta ${UniRef50} ${id} ${params.temp} --start-sens 1 --sens-steps 3 -s 7 --threads ${task.cpus}
+    seqkit fq2fa ${r1} -o ${id}_R1.fasta
+    seqkit fq2fa ${r2} -o ${id}_R2.fasta 
+    mmseqs easy-taxonomy ${id}_R1.fasta ${id}_R2.fasta ${uniref50db}/"UniRef50" ${id} ${params.temp} --threads 32
     """
 }
 
 workflow {
     // Channel for R1 reads
-    ch_r1 = Channel.fromPath("${params.input}/*_R1*.fastq.gz")
+    ch_r1 = Channel.fromPath("${params.input}/*_R1*.fastq*")
         .map { file -> 
             def id = file.baseName.replace('_R1', '')
             return [id, file]
         }
 
     // Channel for R2 reads
-    ch_r2 = Channel.fromPath("${params.input}/*_R2*.fastq.gz")
+    ch_r2 = Channel.fromPath("${params.input}/*_R2*.fastq*")
         .map { file -> 
             def id = file.baseName.replace('_R2', '')
             return [id, file]
@@ -110,6 +110,9 @@ workflow {
     // Run the FASTP process on paired files
     ch_trimmed = FASTP(ch_paired)
 
+    // Channel for the UniRef50 database
+    ch_uniref50 = Channel.fromPath(params.uniref)
+
     // Check if --hostFilter is passed
     if (params.hostFilter) {
         // Define the genome channel
@@ -119,9 +122,9 @@ workflow {
         ch_filtered = hostFilter(ch_trimmed, ch_genome)
 
         // Set the input for readsTaxa to the output of hostFilter
-        ch_taxa_input = ch_filtered
+        ch_taxa_input = readsTaxa(ch_filtered, ch_uniref50)
     } else {
-        // If hostFilter is not run, use the output from FASTP
-        ch_taxa_input = ch_trimmed
+        // If hostFilter is not run, use the outpqut from FASTP
+        ch_taxa_input = readsTaxa(ch_trimmed, ch_uniref50)
     }
 }
