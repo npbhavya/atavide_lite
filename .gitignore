@@ -1,9 +1,12 @@
+atavide-*.out.txt
+atavide-*.err.txt
 .nextflow*
 atavide.egg-info
 work
 atavide.out 
 build 
 dist 
+backup
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

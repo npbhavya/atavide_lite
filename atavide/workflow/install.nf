@@ -6,7 +6,7 @@ params.outdir = 'atavide.out'
 params.dbUrl = "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.fna.gz"
 // Define UniRef50 database URL for downloading
 params.uniref50Url = 'https://ftp.uniprot.org/pub/databases/uniprot/uniref/uniref50/uniref50.fasta.gz'
-
+params.taxUrl = 'https://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz'
 params.temp = "/scratch/user/nala0006/tmp"
 
 process downloadDatabases {
@@ -30,11 +30,13 @@ process downloadUniRef50 {
 
     output:
     path 'uniref50.fasta.gz'
+    path 'taxdump.tar.gz'
 
     script:
     """
     # Download UniRef50 database
     wget ${params.uniref50Url} -O uniref50.fasta.gz
+    wget ${params.taxUrl}
     """
 }
 
@@ -43,6 +45,7 @@ process createUniRef50Db {
 
     input:
     path 'uniref50.fasta.gz'
+    path 'taxdump.tar.gz'
 
     output:
     path 'UniRef50_db'
@@ -53,10 +56,11 @@ process createUniRef50Db {
     """
     # Create database directory
     mkdir -p UniRef50_db
-    
+    tar -xvzf taxdump.tar.gz -C UniRef50_db/
+        
     # Create MMseqs2 database from UniRef50
     mmseqs createdb uniref50.fasta.gz UniRef50_db/UniRef50
-    mmseqs createtaxdb UniRef50_db/UniRef50 UniRef50_db/taxonomy
+    mmseqs createtaxdb UniRef50_db/UniRef50 UniRef50_db/ --tax-mapping-mode 1
     """
 }
 
