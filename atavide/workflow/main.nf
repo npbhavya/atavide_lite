@@ -88,6 +88,7 @@ process readsTaxa {
     """
 }
 
+'''
 process taxonkitLineage {
     publishDir "${params.outdir}/mmseqs_taxonomy", pattern: "*_taxonomy.tsv.gz", mode: 'copy', mkdirs: true
 
@@ -151,6 +152,7 @@ process combine_all {
     cat ${summarised_files.join(' ')} > all_taxonomies.tsv
     """
 }
+'''
 
 workflow {
     // Channel for R1 reads
@@ -195,8 +197,8 @@ workflow {
     }
 
     
-    ch_taxonomy = taxonkitLineage(ch_taxa_outputs.map ) // stuck here I need to take only one output from ch_taxa_output to this channel
-    ch_addtaxa = add_taxonomy(ch_taxonomy)
-    ch_summarise = summarise(ch_addtaxa)
-    ch_summary = combine_all(ch_summarise)
+    //ch_taxonomy = taxonkitLineage(ch_taxa_outputs.map ) // stuck here I need to take only one output from ch_taxa_output to this channel
+    //ch_addtaxa = add_taxonomy(ch_taxonomy)
+    //ch_summarise = summarise(ch_addtaxa)
+    //ch_summary = combine_all(ch_summarise)
 }
