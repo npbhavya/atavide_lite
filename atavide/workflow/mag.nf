@@ -4,6 +4,8 @@ nextflow.enable.dsl=2
 params.input = 'atavide.out/QC/'
 params.outdir = 'atavide.out'
 
+params.gtdbtkDB= '/home/mall0133/miniconda3/envs/gtdbtk/share/gtdbtk-2.2.3/db'
+
 // Define the QC process
 process ASSEMBLY {
     // define output directory
@@ -82,6 +84,44 @@ process VAMB{
     """
 }
 
+process GTDBTKANI {
+    publishDir "${params.outdir}/vamb/gtdbtk", mode: 'copy', mkdirs:true
+
+    input:
+    path ("vamb-out/bins")
+
+    output:
+    path ("ani_rep")
+
+    conda 'bioconda:: gtdbtk=2.4.0'
+
+    script:
+    """
+    export GTDBTK_DATA_PATH=${params.gtdbtkDB}
+    gtdbtk ani_rep --genome_dir vamb-out/bins -x fna --cpus 32
+    """
+}
+
+process GTDBTK {
+    publishDir "${params.outdir}/vamb/gtdbtk", mode: 'copy', mkdirs:true
+
+    input:
+    path ("vamb-out/bins")
+
+    output:
+    path ("classify")
+
+    conda 'bioconda:: gtdbtk=2.4.0'
+
+    script:
+    """
+    export GTDBTK_DATA_PATH=${params.gtdbtkDB}
+    gtdbtk identify --genome_dir vamb-out/bins -x fna --cpus 32 --out_dir identify
+    gtdbtk align --identify_dir identify --out_dir align --cpus 32
+    gdbtk classify --genome_dir vamb-out/bins -x fna --cpus 32 --out_dir classify -f --align_dir align
+    """
+}
+
 workflow {
     // Channel for R1 reads
     ch_r1 = Channel.fromPath("${params.input}/*_R1*")
@@ -128,4 +168,9 @@ workflow {
 
     // Run VAMB
     ch_vamb_output = VAMB(ch_vamb_input)
+
+    //RUN GTDBTK
+    ch_gtdb_ani = GTDBTKANI (ch_vamb_output)
+    ch_gtdbtk = GTDBTK (ch_vamb_output)
+
 }

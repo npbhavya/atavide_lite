@@ -12,4 +12,4 @@
 
 #nextflow run atavide/workflow/install.nf 
 nextflow run atavide/workflow/main.nf --hostFilter true -resume
-#nextflow run atavide/workflow/mag.nf -resume
+#nextflow run atavide/workflow/mag.nf
