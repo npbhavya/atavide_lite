@@ -9,8 +9,8 @@ params.db = './atavide.out/databases/'
 params.host = './atavide.out/databases/GCF_000001405.40_GRCh38.p14_genomic.fna.gz'
 params.uniref = '/home/edwa0468/Databases/mmseqs/UniRef50/'
 params.temp = '/scratch/user/nala0006/tmp'
-params.taxonDB = '/home/edwa0468/Databases/NCBI/taxonomy/Oct_2024/'
-
+//params.taxonDB = "/home/edwa0468/Databases/NCBI/taxonomy/Oct_2024/"
+params.taxonDB = "/home/nala0006/.taxonkit"
 
 // Check if the database directory exists
 if (!file(params.db).isDirectory() || file(params.db).list().length == 0) {
@@ -85,7 +85,7 @@ process TAXONKIT {
     publishDir "${params.outdir}/mmseqs_taxonomy", pattern: "*_taxonomy.tsv.gz", mode: 'copy', mkdirs: true
 
     input:
-    tuple val(id), path(lca), path (report), path (tophit_aln), path (tophit_report)
+    tuple val(id), path(lca), path (report), path (tophit_aln), path (tophit_report), path (taxonDB)
 
     output:
     tuple val(id), path(lca), path ("${id}_taxonomy.tsv.gz")
@@ -94,7 +94,8 @@ process TAXONKIT {
 
     script:
     """
-    zcat ${lca} | awk '!s[\$2]++ {print \$2}' | taxonkit lineage | taxonkit reformat -P | awk -F"\t" -v OFS="\t" '{print \$1, \$3}' | gzip -c > ${id}_taxonomy.tsv.gz
+    export TAXONDB=${taxonDB}
+    cat ${lca} | awk '!s[\$2]++ {print \$2}' | taxonkit lineage | taxonkit reformat -P | awk -F"\t" -v OFS="\t" '{print \$1, \$3}' | gzip -c > ${id}_taxonomy.tsv.gz
     """
 }
 
@@ -138,22 +139,30 @@ process SUMMARISE {
     """
 }
 
-process COMBINE_ALL {
+// Define the COMBINE process
+process COMBINE {
+    // Specify where to save the output files
     publishDir "${params.outdir}/taxonomy", mode: 'copy', mkdirs: true
 
     input:
-    path summarised_files
-    path script_join
+    tuple val (tax),  path(inputFiles)
+    path script_join_path
 
     output:
-    path "all_taxonomies.tsv"
+    path "${tax}.raw.tsv.gz", emit: raw_output // Raw combined output file for the taxonomic rank
+    path "${tax}.norm.tsv.gz", emit: norm_output // Normalized output file for the taxonomic rank
 
     script:
     """
-    export input_files=${summarised_files}
-    export output="all_taxonomies.tsv"
-    python $script_join 
+    # Call a Python script to combine the input files into taxonomic-level summaries
+    python ${script_join_path} ${inputFiles.collect { it + "/${tax}.tsv.gz" }.join(' ')} ${tax}.raw.tsv.gz ${tax}.norm.tsv.gz    
     """
+}
+
+process ANNOT {
+    // Specify where to save the output files
+    publishDir "${params.outdir}/annotation", mode: 'copy', mkdirs: true
+
 }
 
 workflow {
@@ -200,10 +209,11 @@ workflow {
     ch_taxa_inputWDB=ch_taxa_input.combine(ch_uniref50)
     ch_taxa_output = MMSEQS(ch_taxa_inputWDB)
 
-    ch_taxonomy = TAXONKIT(ch_taxa_output) 
-
     // TaxonDB set 
     ch_taxonDB = Channel.fromPath(params.taxonDB)
+    ch_taxonkit_input=ch_taxa_output.combine(ch_taxonDB)
+    ch_taxonomy = TAXONKIT(ch_taxonkit_input) 
+
     //set script to run 
     script_path = file("./atavide/scripts/merge_taxonomy.py")
     ch_addtaxa_input=ch_taxonomy.combine(ch_taxonDB)
@@ -213,11 +223,11 @@ workflow {
     // set script to run 
     script_summary_path = file("./atavide/scripts/summarise_taxonomy.py")
     // Run the SUMMARISE process for each sample in ch_addtaxa
-    ch_summarise = SUMMARISE(ch_addtaxa, script_summary_path).collect() 
-    ch_summarise.view()
+    ch_summarise = SUMMARISE(ch_addtaxa, script_summary_path).collect()
 
-    // set scripts 
-    script_join=file("./atavide/scripts/join.py")
-    // need to writeout the summary files together
-    ch_summary = COMBINE_ALL(ch_summarise, script_join)
+    script_join_path = file("./atavide/scripts/join.py")
+    taxa = Channel.of ('phylum','kingdom','class','family','genus','species')
+    ch_combine_input = taxa.combine(ch_summarise.toList())
+    //ch_combine_input.view()
+    ch_combine_output = COMBINE (ch_combine_input, script_join_path)
 }

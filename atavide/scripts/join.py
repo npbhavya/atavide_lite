@@ -4,7 +4,7 @@ import gzip
 
 __author__ = 'Rob Edwards'
 
-def join(files, raw_output, norm_output):
+def join(files, raw_output, norm_output):    
     raw = {}
     norm = {}
     alltax = set()
@@ -12,39 +12,56 @@ def join(files, raw_output, norm_output):
         raw[f] = {}
         norm[f] = {}
         opener = gzip.open if f.endswith('.gz') else open
-        with opener(f, 'r') as fn:
+        with opener(f, 'rt') as fn:
             for l in fn:
                 p = l.strip().split("\t")
-                raw[f][p[0]] = p[1]
-                norm[f][p[0]] = p[2]
-                alltax.add(p[0])
+                #print (p[2], p[3], p[4])
+                if len(p) >= 5:  # Check for valid lines
+                    raw[f][p[2].strip()] = p[3]
+                    norm[f][p[2].strip()] = p[4]
+                    alltax.add(p[2].strip())
 
     with gzip.open(raw_output, 'wt') as out:
-        print("\t".join(["taxonomy"] + files), file=out)
+        print("\t".join(["taxonomy"] + files), file=out)  # Write the header
         for t in sorted(alltax):
-            print(t, file=out, end="")
+            # Start the line with the taxonomy ID
+            line = [t]
             for f in files:
                 if t not in raw[f]:
-                    print("\t0", file=out, end="")
+                    line.append("0")  # Append 0 if the taxonomy is not found
                 else:
-                    print(f"\t{raw[f][t]}", file=out, end="")
+                    line.append(str(raw[f][t]))  # Append the raw count for the taxonomy
+            # Write the complete line and add a newline at the end
+            print("\t".join(line), file=out)  # This will automatically add a newline after each line
 
     with gzip.open(norm_output, 'wt') as out:
+        # Print the header
         print("\t".join(["taxonomy"] + files), file=out)
+        
+        # Iterate over sorted taxonomies
         for t in sorted(alltax):
-            print(t, file=out, end="")
+            # Print the taxonomy and start the line with its name
+            line = [t]
+            
+            # Append the data for each file
             for f in files:
                 if t not in norm[f]:
-                    print("\t0", file=out, end="")
+                    line.append("0")  # Add 0 if the taxonomy is not found in the file
                 else:
-                    print(f"\t{norm[f][t]}", file=out, end="")
+                    line.append(str(norm[f][t]))  # Add the value for the taxonomy in the file
+
+            # Print the entire line and ensure a newline at the end (this is automatic with print)
+            print("\t".join(line), file=out)
 
 
-#join(snakemake.input.files, snakemake.output.raw_output, snakemake.output.norm_output)
+
+#join(snakemake.input.files, snakemake.output.raw_output, snakemake.output.norm_output)   
+
 if __name__ == "__main__":
-    # Read Nextflow-supplied environment variables
-    input_files = os.getenv('input_files')
-    output = os.getenv('output')
-    
-    # Run the function with provided inputs
-    join(input_files, output)
+    # Read Nextflow-supplied environment variable for input files
+    input_files = sys.argv[1:-2]  # All arguments except the last two
+    output_raw = sys.argv[-2]    # Second-to-last argument
+    output_norm = sys.argv[-1]   # Last argument
+
+    join(input_files, output_raw, output_norm)
+

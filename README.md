@@ -32,7 +32,16 @@ This downloads
 #### Running atavide
 
 ```bash
+#For running read based annotations without host filtering
 nextflow run atavide/workflow/main.nf
+
+#For running read based annotation with host filtering (default to search against human GRCh38)
+nextflow run atavide/workflow/main.nf --hostFilter true
+
+#For running the MAG worklow
+nextflow run atavide/workflow/mag.nf
+
+#To resume a workflow, just add -resume
 ```
 
 Notes: Right now input and output directories are hardcoded in main.nf (fix later)
